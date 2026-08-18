@@ -194,7 +194,7 @@ async function handleLog(
       raw_message: msg.body,
       source_chat_id: msg.chatId,
       source_message_id: msg.messageId,
-      parse_model: "gemini-2.5-flash-lite",
+      parse_model: "gemini-3.5-flash-lite",
     })
     .select("id")
     .single();

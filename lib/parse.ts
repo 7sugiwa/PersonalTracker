@@ -4,15 +4,16 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 import { supabase } from "@/lib/supabase";
 
-// gemini-2.5-flash-lite: Google's own docs describe it as the fastest,
-// most budget-friendly multimodal model in the (stable, non-preview)
-// lineup — a good fit for a low-volume personal bot on the free tier.
+// gemini-3.5-flash-lite: fastest, most budget-friendly multimodal model
+// in the (stable, non-preview) lineup — a good fit for a low-volume
+// personal bot on the free tier. gemini-2.5-flash-lite was retired for
+// new API keys (404 "no longer available to new users").
 // Bump this string if you want a different Gemini model; check
 // ai.google.dev/gemini-api/docs/models and the free-tier limits in AI
 // Studio (ai.google.dev/gemini-api/docs/rate-limits — Google doesn't
 // publish static numbers, they're per-project and viewable there) before
 // switching to something pricier.
-const MODEL = "gemini-2.5-flash-lite";
+const MODEL = "gemini-3.5-flash-lite";
 
 // Lazy singleton — constructing this at module load would read
 // env.GEMINI_API_KEY as soon as anything imports this file (including
