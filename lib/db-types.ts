@@ -10,7 +10,7 @@
 
 export type AccountKind = "bank" | "ewallet" | "cash" | "broker" | "equity";
 export type CategoryKind = "expense" | "income";
-export type AssetClass = "gold" | "us_equity" | "idx_equity" | "crypto";
+export type AssetClass = "gold" | "us_equity" | "idx_equity" | "crypto" | "bond" | "mutual_fund";
 export type TransactionType =
   | "income"
   | "expense"

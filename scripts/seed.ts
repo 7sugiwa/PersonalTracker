@@ -35,14 +35,18 @@ const INCOME_CATEGORIES = [
   "other_income",
 ] as const;
 
-// Starter accounts — EDIT THESE to match your real accounts before going
-// live. Names should be short and distinct; the model uses them verbatim
-// when parsing "kopi 25rb gopay" style messages.
+// Real accounts. Names are short and distinct; the model uses them
+// verbatim when parsing "kopi 25rb gopay" style messages.
 const ACCOUNTS = [
-  { name: "BCA", kind: "bank" as const, is_default: true },
-  { name: "GoPay", kind: "ewallet" as const, is_default: false },
+  { name: "Mandiri", kind: "bank" as const, is_default: true },
+  { name: "BCA Syariah", kind: "bank" as const, is_default: false },
   { name: "OVO", kind: "ewallet" as const, is_default: false },
-  { name: "Cash", kind: "cash" as const, is_default: false },
+  { name: "ShopeePay", kind: "ewallet" as const, is_default: false },
+  { name: "GoPay", kind: "ewallet" as const, is_default: false },
+  { name: "Tokopedia", kind: "ewallet" as const, is_default: false },
+  { name: "LinkAja", kind: "ewallet" as const, is_default: false },
+  { name: "Pluang", kind: "broker" as const, is_default: false },
+  { name: "Growin Mandiri", kind: "broker" as const, is_default: false },
   // Bookkeeping-only — see the account_kind comment in
   // supabase/migrations/0001_schema.sql. Used exclusively by
   // scripts/seed-opening.ts to seed pre-existing asset holdings without
@@ -62,7 +66,7 @@ const ASSETS = [
     unit: "gram",
     quote_currency: "IDR",
     price_source: "logam_mulia",
-    source_ref: "antam",
+    source_ref: "logammulia",
   },
   {
     symbol: "VOO",
@@ -90,6 +94,37 @@ const ASSETS = [
     quote_currency: "IDR",
     price_source: "coingecko",
     source_ref: "bitcoin",
+  },
+  {
+    symbol: "BNB",
+    asset_class: "crypto" as const,
+    display_name: "BNB",
+    unit: "coin",
+    quote_currency: "IDR",
+    price_source: "coingecko",
+    source_ref: "binancecoin",
+  },
+  // No free live-price API for Indonesian retail sukuk or mutual fund
+  // NAVs — price_source "manual" means the daily cron skips these
+  // entirely (see lib/prices/index.ts); update price_snapshots by hand
+  // when you check the value in-app.
+  {
+    symbol: "ST012T4",
+    asset_class: "bond" as const,
+    display_name: "Sukuk Tabungan ST012T4",
+    unit: "unit",
+    quote_currency: "IDR",
+    price_source: "manual",
+    source_ref: "manual",
+  },
+  {
+    symbol: "SUCORINVEST_MMF",
+    asset_class: "mutual_fund" as const,
+    display_name: "Sucorinvest Sharia Money Market Fund",
+    unit: "unit",
+    quote_currency: "IDR",
+    price_source: "manual",
+    source_ref: "manual",
   },
 ];
 
