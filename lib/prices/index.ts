@@ -1,10 +1,10 @@
 import type { PriceAdapter } from "@/lib/prices/types";
 import { logamMuliaAdapter } from "@/lib/prices/logam-mulia";
 import { yahooAdapter } from "@/lib/prices/yahoo";
-import { coingeckoAdapter } from "@/lib/prices/coingecko";
 
 export type { PriceAdapter, PriceResult, Asset } from "@/lib/prices/types";
 export { fetchFxRate, type FxRate } from "@/lib/prices/fx";
+export { fetchCoingeckoBatch } from "@/lib/prices/coingecko";
 
 /** "manual" assets (e.g. a synthetic product with no public NAV) are
  * skipped by the cron entirely rather than adapted — there's nothing to
@@ -12,10 +12,12 @@ export { fetchFxRate, type FxRate } from "@/lib/prices/fx";
  * from a real fetch failure in the cron's logging. */
 const manualAdapter: PriceAdapter = async () => null;
 
+/** "coingecko" is deliberately absent here — it's batched separately in
+ * lib/networth.ts (one request for every crypto asset) rather than
+ * dispatched per-asset like these, see lib/prices/coingecko.ts for why. */
 export const PRICE_ADAPTERS: Record<string, PriceAdapter> = {
   logam_mulia: logamMuliaAdapter,
   yahoo: yahooAdapter,
-  coingecko: coingeckoAdapter,
   manual: manualAdapter,
 };
 

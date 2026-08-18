@@ -1,6 +1,6 @@
 import "server-only";
 import { supabase } from "@/lib/supabase";
-import { adapterFor, fetchFxRate } from "@/lib/prices";
+import { adapterFor, fetchFxRate, fetchCoingeckoBatch } from "@/lib/prices";
 import { wibDateString } from "@/lib/wib";
 
 export interface RunResult {
@@ -35,30 +35,47 @@ export async function runDailyPriceUpdate(): Promise<RunResult> {
   const assetsUpdated: string[] = [];
   const assetsFailed: { symbol: string; reason: string }[] = [];
 
+  // Crypto is fetched as a single batched CoinGecko call rather than
+  // dispatched per-asset like the other sources below — see
+  // lib/prices/coingecko.ts for why (one call per asset hit CoinGecko's
+  // free-tier rate limit once this app tracked more than a few coins).
+  const coingeckoAssets = (assets ?? []).filter((a) => a.price_source === "coingecko");
+  const coingeckoPrices = await fetchCoingeckoBatch(coingeckoAssets.map((a) => a.source_ref));
+
   for (const asset of assets ?? []) {
     try {
-      const adapter = adapterFor(asset.price_source);
-      if (!adapter) {
-        assetsFailed.push({ symbol: asset.symbol, reason: `no adapter for price_source "${asset.price_source}"` });
-        continue;
-      }
+      let result: { price: number; currency: string } | null;
 
-      const result = await adapter({
-        id: asset.id,
-        symbol: asset.symbol,
-        asset_class: asset.asset_class,
-        display_name: "",
-        unit: "",
-        quote_currency: asset.quote_currency,
-        price_source: asset.price_source,
-        source_ref: asset.source_ref,
-        is_active: true,
-        created_at: "",
-      });
+      if (asset.price_source === "coingecko") {
+        result = coingeckoPrices[asset.source_ref] ?? null;
+        if (!result) {
+          assetsFailed.push({ symbol: asset.symbol, reason: "batch fetch returned no price" });
+          continue;
+        }
+      } else {
+        const adapter = adapterFor(asset.price_source);
+        if (!adapter) {
+          assetsFailed.push({ symbol: asset.symbol, reason: `no adapter for price_source "${asset.price_source}"` });
+          continue;
+        }
 
-      if (!result) {
-        assetsFailed.push({ symbol: asset.symbol, reason: "adapter returned no price" });
-        continue;
+        result = await adapter({
+          id: asset.id,
+          symbol: asset.symbol,
+          asset_class: asset.asset_class,
+          display_name: "",
+          unit: "",
+          quote_currency: asset.quote_currency,
+          price_source: asset.price_source,
+          source_ref: asset.source_ref,
+          is_active: true,
+          created_at: "",
+        });
+
+        if (!result) {
+          assetsFailed.push({ symbol: asset.symbol, reason: "adapter returned no price" });
+          continue;
+        }
       }
 
       const { error: upsertErr } = await db.from("price_snapshots").upsert(
