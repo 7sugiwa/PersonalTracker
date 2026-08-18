@@ -1,0 +1,25 @@
+{
+  "_comment": "Example only — fake numbers. Copy to seed-opening.local.json (gitignored) and fill in your real figures. Account names must match scripts/seed.ts; asset symbols must match scripts/seed.ts.",
+  "accounts": [
+    { "name": "BCA", "opening_balance": 5000000, "opening_balance_on": "2026-08-17" },
+    { "name": "GoPay", "opening_balance": 250000, "opening_balance_on": "2026-08-17" },
+    { "name": "OVO", "opening_balance": 100000, "opening_balance_on": "2026-08-17" },
+    { "name": "Cash", "opening_balance": 300000, "opening_balance_on": "2026-08-17" }
+  ],
+  "holdings": [
+    {
+      "symbol": "GOLD_ANTAM",
+      "quantity": 10,
+      "total_cost_idr": 18000000,
+      "occurred_on": "2026-08-17",
+      "note": "opening balance seed"
+    },
+    {
+      "symbol": "VOO",
+      "quantity": 3,
+      "total_cost_idr": 24000000,
+      "occurred_on": "2026-08-17",
+      "note": "opening balance seed"
+    }
+  ]
+}
