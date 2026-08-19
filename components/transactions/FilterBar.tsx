@@ -16,8 +16,32 @@ const TYPE_OPTIONS: Array<{ value: TxFilters["types"][number]; label: string }> 
  * scrolls into view. A filter change always resets to page 1 via the
  * hidden input below. */
 export function FilterBar({ filters, options }: { filters: TxFilters; options: FilterOptions }) {
+  // Every field below is uncontrolled (defaultChecked/defaultValue) so
+  // the form works with zero client JS. React only applies
+  // defaultChecked/defaultValue on a node's FIRST mount — on later
+  // re-renders (e.g. after clicking "Clear", which client-navigates to
+  // /transactions with new server-rendered defaults but reuses the
+  // existing DOM nodes) it leaves whatever the user already interacted
+  // with in place. A checkbox the user checked stays visually checked
+  // even though the URL and results have gone back to unfiltered. This
+  // key forces React to unmount/remount the whole form — fresh DOM
+  // nodes, fresh defaults — whenever the actual filter values change.
+  const formKey = JSON.stringify({
+    types: filters.types,
+    accountId: filters.accountId,
+    categoryId: filters.categoryId,
+    assetId: filters.assetId,
+    from: filters.from,
+    to: filters.to,
+    q: filters.q,
+  });
+
   return (
-    <Form action="/transactions" className="mb-4 rounded-xl border border-line bg-surface p-4">
+    <Form
+      key={formKey}
+      action="/transactions"
+      className="mb-4 rounded-xl border border-line bg-surface p-4"
+    >
       <input type="hidden" name="page" value="1" />
 
       <div className="mb-3">
