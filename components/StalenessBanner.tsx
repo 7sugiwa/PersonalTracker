@@ -7,7 +7,7 @@ export async function StalenessBanner() {
   if (stale.length === 0) return null;
 
   return (
-    <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <div className="mb-6 rounded-xl border border-warning bg-warning-surface px-4 py-3 text-sm text-warning">
       <strong>Stale prices:</strong>{" "}
       {stale
         .map(

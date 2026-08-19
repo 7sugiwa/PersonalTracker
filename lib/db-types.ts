@@ -359,6 +359,28 @@ export interface Database {
           breakdown: Record<string, unknown>;
         }[];
       };
+      // supabase/migrations/0007_positions_function.sql — numeric
+      // columns come back as strings, same as every other PostgREST
+      // numeric (see e.g. holdings.quantity above).
+      get_positions: {
+        Args: { as_of?: string };
+        Returns: {
+          asset_id: string;
+          symbol: string;
+          display_name: string;
+          asset_class: string;
+          unit: string;
+          quantity: string;
+          avg_cost_idr: string;
+          total_cost_idr: string;
+          latest_price: string | null;
+          price_currency: string | null;
+          price_on: string | null;
+          fx_rate: string | null;
+          market_value_idr: string | null;
+          priced: boolean;
+        }[];
+      };
     };
     Enums: {
       account_kind: AccountKind;

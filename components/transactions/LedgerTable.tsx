@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { RecentTransaction } from "@/lib/dashboard-data";
+import type { LedgerRow } from "@/lib/transactions-data";
 import { rp } from "@/lib/format";
 import { Table, THead, TBody, TR, TH, TDNum } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,13 +21,13 @@ const TYPE_TONE: Record<string, "positive" | "negative" | "warning" | "neutral">
   transfer: "neutral",
 };
 
-export function RecentTransactions({ transactions }: { transactions: RecentTransaction[] }) {
-  if (transactions.length === 0) {
+export function LedgerTable({ rows, returnTo }: { rows: LedgerRow[]; returnTo: string }) {
+  if (rows.length === 0) {
     return (
       <EmptyState
-        title="No transactions yet"
-        hint="Text something to the Telegram bot."
-        height={120}
+        title="No transactions match these filters"
+        hint="Try widening the date range or clearing a filter."
+        height={160}
       />
     );
   }
@@ -43,7 +43,7 @@ export function RecentTransactions({ transactions }: { transactions: RecentTrans
         <TH></TH>
       </THead>
       <TBody>
-        {transactions.map((t) => (
+        {rows.map((t) => (
           <TR key={t.id}>
             <td className="py-2 pr-3 whitespace-nowrap text-ink-secondary">{t.occurredOn}</td>
             <td className="py-2 pr-3">
@@ -61,13 +61,13 @@ export function RecentTransactions({ transactions }: { transactions: RecentTrans
             <TDNum>{rp(t.amount)}</TDNum>
             <td className="py-2 pl-2 text-right whitespace-nowrap">
               <Link
-                href={`/transactions/${t.id}/edit?returnTo=%2F`}
+                href={`/transactions/${t.id}/edit?returnTo=${encodeURIComponent(returnTo)}`}
                 className="text-ink-secondary transition-colors hover:text-ink"
               >
                 edit
               </Link>{" "}
               <Link
-                href={`/transactions/${t.id}/delete?returnTo=%2F`}
+                href={`/transactions/${t.id}/delete?returnTo=${encodeURIComponent(returnTo)}`}
                 className="text-ink-secondary transition-colors hover:text-negative"
               >
                 delete

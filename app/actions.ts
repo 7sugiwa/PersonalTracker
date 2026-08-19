@@ -4,6 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+/** A transaction edit/delete can be reached from the Overview page or
+ * from /transactions with a specific filter+page in its URL — `returnTo`
+ * lets the action send the user back to wherever they actually came
+ * from instead of always bouncing to "/". Only ever trust a same-origin
+ * relative path: reject anything that isn't a bare "/..." path (no
+ * scheme, no "//" host-relative prefix) to close the open-redirect
+ * surface a raw user-supplied URL would otherwise open. */
+function safeReturnTo(raw: FormDataEntryValue | null, fallback: string): string {
+  const s = String(raw ?? "");
+  if (s.startsWith("/") && !s.startsWith("//")) return s;
+  return fallback;
+}
+
 /** Soft-deletes a transaction and, if it moved an asset, rebuilds
  * holdings from the remaining history — same rule as the Telegram `undo`
  * flow (lib/process-message.ts): holdings is a derived table, never
@@ -11,6 +24,7 @@ import { supabase } from "@/lib/supabase";
  * state incremental math couldn't reach. */
 export async function deleteTransactionAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
+  const returnTo = safeReturnTo(formData.get("returnTo"), "/transactions");
   if (!id) return;
 
   const db = supabase();
@@ -31,13 +45,20 @@ export async function deleteTransactionAction(formData: FormData) {
     if (rpcErr) console.error("recompute_holdings failed after dashboard delete", rpcErr);
   }
 
+  // An asset_buy/asset_sell delete changes holdings, which /portfolio
+  // reads — revalidate every page that could be showing this row or a
+  // total derived from it, not just "/".
   revalidatePath("/");
+  revalidatePath("/transactions");
+  revalidatePath("/portfolio");
+  redirect(returnTo);
 }
 
 export async function updateTransactionAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const amountRaw = formData.get("amount");
   const noteRaw = formData.get("note");
+  const returnTo = safeReturnTo(formData.get("returnTo"), "/");
   if (!id || amountRaw === null) return;
 
   const amount = Number(amountRaw);
@@ -69,5 +90,7 @@ export async function updateTransactionAction(formData: FormData) {
   }
 
   revalidatePath("/");
-  redirect("/");
+  revalidatePath("/transactions");
+  revalidatePath("/portfolio");
+  redirect(returnTo);
 }

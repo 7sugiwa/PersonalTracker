@@ -1,26 +1,153 @@
 @import "tailwindcss";
 
+/* Class-based dark mode. Toggled on <html> by lib/theme.ts's inline
+   script (before paint) and components/nav/ThemeToggle.tsx (after
+   hydration). Replaces the old prefers-color-scheme block, which only
+   ever swapped two variables and couldn't be overridden by a toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ *
+ * Raw tokens. Chart components (components/charts/*) reference these
+ * bare --name vars directly via CSS var() in SVG props, NOT the
+ * --color-* aliases below — that's what lets recharts repaint on
+ * theme toggle with zero React re-render (see chart-theme.ts).
+ * ------------------------------------------------------------------ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --page: #f7f7f6;
+  --surface: #ffffff;
+  --surface-2: #f2f2f0; /* thead, row hover, skeleton base */
+  --surface-inset: #fafaf9; /* inputs */
+  --line: #e4e4e1;
+  --line-strong: #d3d3ce;
+  --ring: #2a78d6;
+
+  --text: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781; /* axis ticks & decorative meta ONLY (sub-AA) */
+
+  --grid: #e1e0d9; /* hairline, solid, never dashed */
+  --axis: #c3c2b7;
+
+  /* Money direction. Reserved — never used as a series identity color. */
+  --positive: #006300;
+  --positive-mark: #0ca30c;
+  --positive-surface: #eaf6ea;
+  --negative: #b32c2c;
+  --negative-mark: #d03b3b;
+  --negative-surface: #fbecec;
+  --warning: #8a5a00;
+  --warning-mark: #fab219;
+  --warning-surface: #fdf6e3;
+
+  /* Categorical series — fixed slot order, see components/charts/chart-theme.ts.
+     Never cycled/reordered: an entity keeps its slot even when siblings
+     are filtered out. */
+  --series-1: #2a78d6; /* blue */
+  --series-2: #eb6834; /* orange */
+  --series-3: #1baf7a; /* aqua */
+  --series-4: #eda100; /* yellow */
+  --series-5: #e87ba4; /* magenta */
+  --series-6: #008300; /* green */
+  --series-7: #4a3aa7; /* violet */
+  --series-8: #e34948; /* red */
+}
+
+.dark {
+  color-scheme: dark; /* scrollbars + native form controls */
+
+  --page: #0c0c0d;
+  --surface: #17171a;
+  --surface-2: #202024;
+  --surface-inset: #131316;
+  --line: #2a2a2f;
+  --line-strong: #3a3a41;
+  --ring: #3987e5;
+
+  --text: #f4f4f2;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8e8d86;
+
+  --grid: #26262a;
+  --axis: #3a3a41;
+
+  --positive: #35c74a;
+  --positive-mark: #0ca30c;
+  --positive-surface: #122a12;
+  --negative: #f08a8a;
+  --negative-mark: #d03b3b;
+  --negative-surface: #2c1414;
+  --warning: #fab219;
+  --warning-mark: #fab219;
+  --warning-surface: #2a2210;
+
+  /* Same eight hues, re-stepped for the dark surface — not a flip. */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-inset: var(--surface-inset);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--text);
+  --color-ink-secondary: var(--text-secondary);
+  --color-ink-muted: var(--text-muted);
+
+  --color-ring: var(--ring);
+
+  --color-positive: var(--positive);
+  --color-positive-mark: var(--positive-mark);
+  --color-positive-surface: var(--positive-surface);
+  --color-negative: var(--negative);
+  --color-negative-mark: var(--negative-mark);
+  --color-negative-surface: var(--negative-surface);
+  --color-warning: var(--warning);
+  --color-warning-mark: var(--warning-mark);
+  --color-warning-surface: var(--warning-surface);
+
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
+  --color-series-7: var(--series-7);
+  --color-series-8: var(--series-8);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background: var(--page);
+    color: var(--text);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  ::selection {
+    background: color-mix(in oklab, var(--ring) 25%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
