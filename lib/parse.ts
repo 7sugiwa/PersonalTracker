@@ -27,7 +27,7 @@ function gemini(): GoogleGenAI {
 }
 
 const LogSchema = z.object({
-  type: z.enum(["income", "expense", "asset_buy", "asset_sell"]),
+  type: z.enum(["income", "expense", "asset_buy", "asset_sell", "transfer"]),
   // The literal amount token as it appeared in the message, e.g. "25rb" or
   // "1.850.000" — used by lib/amount.ts as a deterministic cross-check
   // against amount_normalized. For a compound expression (quantity ×
@@ -40,7 +40,21 @@ const LogSchema = z.object({
   account_slug: z
     .string()
     .nullable()
-    .describe("Must exactly match one of the account names listed in the system prompt, or null if not mentioned/unclear."),
+    .describe(
+      "The account money moves FROM (for transfer, expense, asset_buy) or INTO (for income, asset_sell). Must exactly match one of the account names listed in the system prompt, or null if not mentioned/unclear.",
+    ),
+  counter_account_slug: z
+    .string()
+    .nullable()
+    .describe(
+      "Only for type=transfer — the destination account money moves INTO. Must exactly match one of the account names listed in the system prompt. Null if the destination isn't one of the user's own tracked accounts (in which case this should not be classified as transfer — see system prompt) or wasn't stated.",
+    ),
+  fee_amount: z
+    .number()
+    .nullable()
+    .describe(
+      "Only for type=transfer — a separate transfer/admin fee mentioned alongside the transfer, already resolved to IDR (apply the same shorthand rules as amount_normalized). Null if no fee was mentioned.",
+    ),
   category_slug: z
     .string()
     .nullable()
@@ -104,10 +118,12 @@ const GEMINI_RESPONSE_SCHEMA = {
     log: {
       type: ["object", "null"],
       properties: {
-        type: { type: "string", enum: ["income", "expense", "asset_buy", "asset_sell"] },
+        type: { type: "string", enum: ["income", "expense", "asset_buy", "asset_sell", "transfer"] },
         amount_raw: { type: "string" },
         amount_normalized: { type: "number" },
         account_slug: { type: ["string", "null"] },
+        counter_account_slug: { type: ["string", "null"] },
+        fee_amount: { type: ["number", "null"] },
         category_slug: { type: ["string", "null"] },
         asset_symbol: { type: ["string", "null"] },
         quantity: { type: ["number", "null"] },
@@ -119,6 +135,8 @@ const GEMINI_RESPONSE_SCHEMA = {
         "amount_raw",
         "amount_normalized",
         "account_slug",
+        "counter_account_slug",
+        "fee_amount",
         "category_slug",
         "asset_symbol",
         "quantity",
@@ -166,6 +184,10 @@ Set confidence "low" whenever you're guessing at amount, account, or category �
 "rb"/"ribu"/"k" = thousands. "jt"/"juta" = millions. "45rb" = 45000. "1,5jt" = 1500000.
 A dot in a plain number is a THOUSANDS separator, not a decimal point: "45.000" = 45000, "1.850.000" = 1850000 — never divide by 1000 when you see a dot.
 For asset_buy/asset_sell given as "quantity @ unit price" (e.g. "5 gram emas @1.850.000/gram" or "beli 5 gram emas harga 1.850.000/gram"), compute amount_normalized = quantity × unit price yourself and put the unit price literal in amount_raw.
+
+# Transfers between the user's own accounts
+Use type "transfer" ONLY when both the source and destination are accounts from the Accounts list above. account_slug is the source (money leaves here), counter_account_slug is the destination (money arrives here) — figure out which is which from context regardless of word order: "200rb dari BSyariah ke GoPay", "pindahin 200rb BSyariah ke GoPay", and "200rb ke GoPay dari BSyariah" all mean the same thing (source=BSyariah, destination=GoPay). If the message mentions moving money OUT to something that is NOT one of the user's own tracked accounts (a person, a merchant, a bill, anything not in the Accounts list), that is an "expense" from the source account instead — do not invent a transfer with a null or guessed counter_account_slug.
+A transfer fee/admin charge mentioned in the same message (e.g. "kena biaya 2500", "fee 2rb", "admin 3.000") goes in fee_amount, resolved to IDR with the same shorthand rules as amount_normalized — not added into amount_normalized itself. Leave fee_amount null if no fee is mentioned. fee_amount and counter_account_slug only ever apply to type "transfer"; leave both null for every other type.
 
 # Dates
 occurred_on is null unless the message explicitly names a different day than today (e.g. "kemarin" = yesterday, "tgl 10" = the 10th of the current month). The current date is given in the user message, not here.`;

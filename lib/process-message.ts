@@ -117,6 +117,11 @@ async function handleLog(
     return;
   }
 
+  if (log.type === "transfer") {
+    await handleTransfer(db, msg, log, account);
+    return;
+  }
+
   const isAssetTx = log.type === "asset_buy" || log.type === "asset_sell";
   let assetId: string | null = null;
   let assetDisplay = "";
@@ -222,10 +227,119 @@ async function handleLog(
   await reply(db, msg, confirmation, "inserted", undefined, tx.id);
 }
 
+/** A transfer moves money between two of the user's OWN tracked
+ * accounts — net-neutral on total net worth (compute_net_worth
+ * excludes transfers from the cash formula entirely, see
+ * 0005_networth_function.sql). The parser only ever emits type
+ * "transfer" when the destination matched a known account (see the
+ * system prompt); anything moving money to an untracked recipient
+ * comes through as a plain "expense" instead. */
+async function handleTransfer(
+  db: Db,
+  msg: InboundTelegramMessage,
+  log: NonNullable<Awaited<ReturnType<typeof parseMessage>>>["log"],
+  source: { id: string; name: string },
+) {
+  if (!log) return; // narrowed by caller; guard keeps TS happy
+
+  const destination = await resolveExactAccount(db, log.counter_account_slug);
+  if (!destination) {
+    await reply(
+      db,
+      msg,
+      `Transfer ke akun mana? (${(await listAccountNames(db)).join(", ")})`,
+      "failed",
+      `counter_account not resolved: ${log.counter_account_slug}`,
+    );
+    return;
+  }
+
+  if (destination.id === source.id) {
+    await reply(
+      db,
+      msg,
+      "Akun asal dan tujuan sama — itu bukan transfer.",
+      "failed",
+      "transfer source and destination are the same account",
+    );
+    return;
+  }
+
+  const todayWib = wibDateString();
+  const occurredOn = log.occurred_on ?? todayWib;
+  const occurredAt =
+    occurredOn === todayWib
+      ? new Date().toISOString()
+      : new Date(`${occurredOn}T00:00:00+07:00`).toISOString();
+
+  const { data: transferTx, error: transferErr } = await db
+    .from("transactions")
+    .insert({
+      type: "transfer",
+      amount: log.amount_normalized,
+      currency: "IDR",
+      account_id: source.id,
+      counter_account_id: destination.id,
+      note: log.note,
+      occurred_at: occurredAt,
+      occurred_on: occurredOn,
+      raw_message: msg.body,
+      source_chat_id: msg.chatId,
+      source_message_id: msg.messageId,
+      parse_model: "gemini-3.5-flash-lite",
+    })
+    .select("id")
+    .single();
+
+  if (transferErr || !transferTx) {
+    await reply(db, msg, "Gagal nyimpen transfer. Coba lagi.", "failed", transferErr?.message);
+    return;
+  }
+
+  // A mentioned fee is real money leaving net worth (unlike the
+  // transfer itself), so it's its own "expense" row against the
+  // source account, tagged to the existing "fees" category — not a
+  // new column on the transfer. Sharing source_chat_id/
+  // source_message_id with the transfer row is what makes /undo below
+  // remove both together instead of orphaning one.
+  let feeNote = "";
+  if (log.fee_amount && log.fee_amount > 0) {
+    const { data: feesCategory } = await db
+      .from("categories")
+      .select("id")
+      .eq("slug", "fees")
+      .maybeSingle();
+
+    const { error: feeErr } = await db.from("transactions").insert({
+      type: "expense",
+      amount: log.fee_amount,
+      currency: "IDR",
+      account_id: source.id,
+      category_id: feesCategory?.id ?? null,
+      note: `Fee transfer ke ${destination.name}`,
+      occurred_at: occurredAt,
+      occurred_on: occurredOn,
+      raw_message: msg.body,
+      source_chat_id: msg.chatId,
+      source_message_id: msg.messageId,
+      parse_model: "gemini-3.5-flash-lite",
+    });
+
+    if (feeErr) {
+      console.error("failed to insert transfer fee", feeErr);
+    } else {
+      feeNote = ` (+ fee ${idr.format(log.fee_amount)})`;
+    }
+  }
+
+  const confirmation = `✅ Transfer ${idr.format(log.amount_normalized)} · ${source.name} → ${destination.name}${feeNote}`;
+  await reply(db, msg, confirmation, "inserted", undefined, transferTx.id);
+}
+
 async function handleUndo(db: Db, msg: InboundTelegramMessage) {
   const { data: last } = await db
     .from("transactions")
-    .select("id, type, amount, asset_id")
+    .select("id, type, amount, asset_id, source_chat_id, source_message_id")
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -236,22 +350,44 @@ async function handleUndo(db: Db, msg: InboundTelegramMessage) {
     return;
   }
 
+  // A transfer-with-fee inserts two rows from one message (same
+  // source_chat_id/source_message_id) — undo needs to remove both, or
+  // the fee (inserted second, so it's "last") would get undone on its
+  // own and orphan the transfer it belongs to. Falls back to deleting
+  // only the single row when source_message_id is null (e.g. rows
+  // inserted by a seed script, not the bot).
+  let toDelete: Array<{ id: string; type: string; amount: string }> = [last];
+  if (last.source_chat_id != null && last.source_message_id != null) {
+    const { data: group } = await db
+      .from("transactions")
+      .select("id, type, amount")
+      .is("deleted_at", null)
+      .eq("source_chat_id", last.source_chat_id)
+      .eq("source_message_id", last.source_message_id);
+    if (group && group.length > 0) toDelete = group;
+  }
+
   const { error } = await db
     .from("transactions")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("id", last.id);
+    .in(
+      "id",
+      toDelete.map((t) => t.id),
+    );
 
   if (error) {
     await reply(db, msg, "Gagal undo. Coba lagi.", "failed", error.message);
     return;
   }
 
-  if (last.type === "asset_buy" || last.type === "asset_sell") {
+  if (toDelete.some((t) => t.type === "asset_buy" || t.type === "asset_sell")) {
     const { error: rpcErr } = await db.rpc("recompute_holdings");
     if (rpcErr) console.error("recompute_holdings failed after undo", rpcErr);
   }
 
-  await reply(db, msg, `↩️ Dibatalkan: ${idr.format(Number(last.amount))}`, "inserted");
+  const total = toDelete.reduce((sum, t) => sum + Number(t.amount), 0);
+  const suffix = toDelete.length > 1 ? ` (${toDelete.length} transaksi)` : "";
+  await reply(db, msg, `↩️ Dibatalkan: ${idr.format(total)}${suffix}`, "inserted");
 }
 
 async function handleEdit(
@@ -387,6 +523,22 @@ async function resolveAccount(db: Db, slug: string | null) {
     .is("archived_at", null)
     .maybeSingle();
   return fallback;
+}
+
+/** Like resolveAccount, but no default-account fallback — used for a
+ * transfer's destination, where guessing an account the user never
+ * named would silently move money somewhere they didn't say. Null
+ * slug or no match both mean "ask the user", not "assume". */
+async function resolveExactAccount(db: Db, slug: string | null) {
+  if (!slug) return null;
+  const { data } = await db
+    .from("accounts")
+    .select("id, name")
+    .eq("name", slug)
+    .neq("kind", "equity")
+    .is("archived_at", null)
+    .maybeSingle();
+  return data;
 }
 
 async function listAccountNames(db: Db): Promise<string[]> {
