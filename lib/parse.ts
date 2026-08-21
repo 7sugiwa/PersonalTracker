@@ -171,14 +171,16 @@ const SYSTEM_PROMPT_TEMPLATE = `You parse short Telegram messages (Indonesian an
 
 Set confidence "low" whenever you're guessing at amount, account, or category — the app will ask the user to clarify rather than silently inserting a wrong value. Never invent an account, category, or asset that isn't in the lists below; if the message doesn't clearly name one, return null for that field rather than picking the closest match.
 
-# Accounts (use the exact name)
+# Accounts (use the exact name in account_slug/counter_account_slug)
 {{ACCOUNTS}}
+Match a casual abbreviation, contraction, or nickname for one of the accounts above WITH confidence "high", the same as if it were spelled out in full — e.g. "bsya" or "bca sy" both mean "BCA Syariah", "gopay"/"go pay" both mean "GoPay". This is a single user's own short list of accounts, not an open-ended lookup, so a shorthand that plausibly points at exactly one of them is not a guess. Only use null / lower confidence when nothing in the list is a reasonable match, or more than one account fits equally well.
 
 # Categories (use the exact slug)
 {{CATEGORIES}}
 
 # Assets (use the exact symbol) — only relevant for asset_buy/asset_sell
 {{ASSETS}}
+asset_buy/asset_sell apply ONLY to the specific instruments listed above (stocks, crypto, gold, bonds, mutual funds), matched to an exact symbol. Buying or selling anything else — electronics, gadgets, vehicles, furniture, any other personal belonging — is never asset_buy/asset_sell, even though "sold" or "beli" sounds the same: selling a personal item for cash is "income" (account_slug = where the money lands, category_slug = "other_income" unless something else fits better), and buying one is "expense" (account_slug = where the money leaves from, closest-fitting category).
 
 # Indonesian number shorthand
 "rb"/"ribu"/"k" = thousands. "jt"/"juta" = millions. "45rb" = 45000. "1,5jt" = 1500000.
